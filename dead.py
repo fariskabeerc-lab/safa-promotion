@@ -1,82 +1,53 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 
-# --- Load Multiple Excel Files ---
-files = ["dead_stock1.xlsx", "dead_stock2.xlsx", "dead_stock3.xlsx"]  # update file names
-dfs = [pd.read_excel(f) for f in files]
-df = pd.concat(dfs, ignore_index=True)
+st.set_page_config(page_title="Promotion Analysis", layout="wide")
+st.title("Promotion Performance Dashboard")
 
-# --- Clean column names ---
-df.columns = df.columns.str.strip()
+# --- Load data directly from file path ---
+file_path = "Promotion Report newwwww.Xlsx"  # <-- Replace with your file path
+df = pd.read_excel(file_path)
 
-# --- Ensure numeric fields ---
-for col in ["Stock Value", "Stock", "Profit", "Margin%", "Total Sales", "Cost", "Selling", "LP Price"]:
-    if col in df.columns:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+st.subheader("Raw Data")
+st.dataframe(df)
 
-# --- Handle negative stock for plotting ---
-df["Stock_clean"] = df["Stock"].clip(lower=0)
+# Check required columns
+required_cols = ["Item Code", "Item Name", "Cost Price", "Sales Price", "Sales Qty"]
+missing_cols = [c for c in required_cols if c not in df.columns]
 
-# --- Dashboard Layout ---
-st.set_page_config(page_title="Dead Stock Dashboard", layout="wide")
-st.title("📊Safa Oud metha Stock(Zero Sales and LP before 2025)")
-
-# --- KPIs at Top ---
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Total Dead Stock Items", f"{len(df):,}")
-col2.metric("Total Stock Qty", f"{df['Stock'].sum():,.0f}")
-col3.metric("Total Stock Value", f"{df['Stock Value'].sum():,.2f}")
-
-# --- High Priority Items (Top 10 by Stock Value) ---
-st.subheader("🚨 High Priority Items (Top 10 by Stock Value)")
-high_priority = df.nlargest(10, "Stock Value")
-priority_cols = [c for c in ["Item Bar Code","Item Name","Stock","Stock Value","Margin%","Profit",
-                             "Cost","Selling","LP Price","LP Date","LP Supplier"] if c in df.columns]
-st.table(high_priority[priority_cols])  # removed gradient to avoid matplotlib dependency
-
-# --- Top Items by Stock Value (Horizontal Bar Chart) ---
-st.subheader("Top 20 Items by Stock Value")
-top_items = df.nlargest(20, "Stock Value")
-fig1 = px.bar(
-    top_items, y="Item Name", x="Stock Value", orientation="h",
-    text="Stock Value", color="Stock Value", color_continuous_scale="Reds",
-    hover_data={
-        "Item Bar Code": True,
-        "Item Name": True,
-        "Stock": True,
-        "Stock Value": True,
-        "Margin%": True,
-        "Profit": True,
-        "Cost": True,
-        "Selling": True,
-        "LP Price": True
-    }
-)
-fig1.update_layout(yaxis={'categoryorder':'total ascending'})
-st.plotly_chart(fig1, use_container_width=True)
-
-# --- Pie Chart: Category-wise Stock Value ---
-st.subheader("Stock Value by Category")
-if "Category" in df.columns:
-    category_df = df.groupby("Category")["Stock Value"].sum().reset_index()
-    fig2 = px.pie(
-        category_df, values="Stock Value", names="Category",
-        hover_data={"Stock Value": True},
-        color_discrete_sequence=px.colors.sequential.Reds
-    )
-    fig2.update_traces(textinfo="percent+label")
-    st.plotly_chart(fig2, use_container_width=True)
-
-
-
-# --- Detailed Data Table (Full Details) ---
-st.subheader("Detailed Dead Stock Items (Full Details)")
-detailed_cols = [c for c in ["Item Bar Code","Item Name","Item No","Stock","Stock Value","Margin%","Profit",
-                             "Cost","Selling","LP Price","LP Date","LP Supplier","CF","Unit","Category","Pre Return"] 
-                 if c in df.columns]
-st.dataframe(df[detailed_cols])
-
-# --- Download Option ---
-csv = df[detailed_cols].to_csv(index=False).encode('utf-8')
-st.download_button("📥 Download Full Dead Stock Data", csv, "dead_stock_full.csv", "text/csv")
+if missing_cols:
+    st.error(f"Missing columns: {missing_cols}")
+else:
+    # Calculate Gross Profit
+    df["Gross Profit"] = (df["Sales Price"] - df["Cost Price"]) * df["Sales Qty"]
+    df["Margin %"] = (df["Gross Profit"] / (df["Sales Price"] * df["Sales Qty"])) * 100
+    
+    # Top items by Gross Profit
+    top_items = df.sort_values(by="Gross Profit", ascending=False).head(10)
+    st.subheader("Top 10 Items by Gross Profit")
+    st.dataframe(top_items[["Item Code", "Item Name", "Sales Qty", "Sales Price", "Cost Price", "Gross Profit", "Margin %"]])
+    
+    # If Category exists
+    if "Category" in df.columns:
+        category_gp = df.groupby("Category")["Gross Profit"].sum().sort_values(ascending=False)
+        st.subheader("Top Categories by Gross Profit")
+        st.dataframe(category_gp.reset_index())
+    
+    # Suggestions
+    st.subheader("Promotion Suggestions")
+    suggestions = []
+    
+    # High GP items
+    high_gp_items = top_items["Item Name"].tolist()
+    suggestions.append(f"Focus next promotion on high GP items: {', '.join(high_gp_items)}")
+    
+    # Low GP items
+    low_gp_items = df.sort_values(by="Gross Profit").head(10)["Item Name"].tolist()
+    suggestions.append(f"Consider reviewing low GP items: {', '.join(low_gp_items)}")
+    
+    if "Category" in df.columns:
+        top_categories = category_gp.head(3).index.tolist()
+        suggestions.append(f"Prioritize promotions on top categories: {', '.join(top_categories)}")
+    
+    for s in suggestions:
+        st.write("- " + s)
