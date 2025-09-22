@@ -11,21 +11,29 @@ df = pd.read_excel(file_path)
 st.subheader("Raw Data")
 st.dataframe(df)
 
-# Check required columns
-required_cols = ["Item Code", "Item Name", "Cost Price", "Sales Price", "Sales Qty"]
+# Ensure required columns are present
+required_cols = ["Item Code", "Item Name", "Cost Price", "Sales Qty", "Promo Price1"]
 missing_cols = [c for c in required_cols if c not in df.columns]
 
 if missing_cols:
     st.error(f"Missing columns: {missing_cols}")
 else:
-    # Calculate Gross Profit
-    df["Gross Profit"] = (df["Sales Price"] - df["Cost Price"]) * df["Sales Qty"]
-    df["Margin %"] = (df["Gross Profit"] / (df["Sales Price"] * df["Sales Qty"])) * 100
+    # Use Promo Price if available, else use Sales Price
+    df["Effective Price"] = df["Promo Price1"].fillna(df["Sales Price"])
     
-    # Top items by Gross Profit
+    # Calculate Gross Profit (GP) and Margin %
+    df["Gross Profit"] = (df["Effective Price"] - df["Cost Price"]) * df["Sales Qty"]
+    df["Margin %"] = (df["Gross Profit"] / (df["Effective Price"] * df["Sales Qty"])) * 100
+    
+    # Top 10 Items by GP
     top_items = df.sort_values(by="Gross Profit", ascending=False).head(10)
     st.subheader("Top 10 Items by Gross Profit")
-    st.dataframe(top_items[["Item Code", "Item Name", "Sales Qty", "Sales Price", "Cost Price", "Gross Profit", "Margin %"]])
+    st.dataframe(top_items[["Item Code", "Item Name", "Sales Qty", "Effective Price", "Cost Price", "Gross Profit", "Margin %"]])
+    
+    # Top 10 Items by Margin %
+    top_margin = df.sort_values(by="Margin %", ascending=False).head(10)
+    st.subheader("Top 10 Items by Margin %")
+    st.dataframe(top_margin[["Item Code", "Item Name", "Sales Qty", "Effective Price", "Cost Price", "Gross Profit", "Margin %"]])
     
     # If Category exists
     if "Category" in df.columns:
@@ -37,11 +45,9 @@ else:
     st.subheader("Promotion Suggestions")
     suggestions = []
     
-    # High GP items
     high_gp_items = top_items["Item Name"].tolist()
     suggestions.append(f"Focus next promotion on high GP items: {', '.join(high_gp_items)}")
     
-    # Low GP items
     low_gp_items = df.sort_values(by="Gross Profit").head(10)["Item Name"].tolist()
     suggestions.append(f"Consider reviewing low GP items: {', '.join(low_gp_items)}")
     
