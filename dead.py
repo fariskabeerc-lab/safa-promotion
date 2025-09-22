@@ -8,17 +8,14 @@ st.title("Promotion Performance Dashboard")
 file_path = "Promotion Report newwwww.Xlsx"  # <-- Replace with your file path
 df = pd.read_excel(file_path)
 
-st.subheader("Raw Data")
-st.dataframe(df)
-
-# Ensure required columns are present
+# Correct column names based on your data
 required_cols = ["Item Code", "Item Name", "Cost Price", "Sales Qty", "Promo Price1"]
 missing_cols = [c for c in required_cols if c not in df.columns]
 
 if missing_cols:
     st.error(f"Missing columns: {missing_cols}")
 else:
-    # Use Promo Price if available, else use Sales Price
+    # Use Promo Price1 as effective price
     df["Effective Price"] = df["Promo Price1"].fillna(df["Sales Price"])
     
     # Calculate Gross Profit (GP) and Margin %
@@ -57,3 +54,7 @@ else:
     
     for s in suggestions:
         st.write("- " + s)
+    
+    # --- Show Raw Data at the end ---
+    st.subheader("Raw Data")
+    st.dataframe(df)
